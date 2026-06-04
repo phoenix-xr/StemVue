@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
-const GEMINI_MODEL = "gemini-3.1-flash-lite"; // Primary model for all LLM tasks, with fallback to 2.5-lite on crashes
+const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks, with fallback to 2.5-lite on crashes
 
 const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
@@ -53,7 +53,7 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
 
   while (attempts < maxRetries) {
     try {
-      const activeModel = attempts === 0 ? GEMINI_MODEL : "gemini-3.5-flash"; // Fallback to lower parameter Gemma if primary crashes
+      const activeModel = attempts === 0 ? GEMINI_MODEL : "gemma-4-31b-it"; // Fallback to lower parameter Gemma if primary crashes
       console.log(`[Gemini] Sending request to ${activeModel} (Attempt ${attempts + 1}/${maxRetries})...`);
 
       let contentParts: any[] = [`PROBLEM: ${problem}`];
