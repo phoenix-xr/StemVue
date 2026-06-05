@@ -31,14 +31,26 @@ export async function createTask(taskId: string, problem: string, ipAddress: str
 }
 
 export async function checkRateLimit(ipAddress: string): Promise<{ allowed: boolean, minutesLeft?: number }> {
-  // DEV OVERRIDE: Temporarily disabled rate limiting for testing
-  return { allowed: true };
+  // Simple rate limiting: 1 request per 2 minutes per IP to prevent spam abuse
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data, error } = await getSupabase()
+    .from("task_data")
+    .select("created_at")
+    .eq("ip_address", ipAddress)
+    .gt("created_at", twoMinutesAgo)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) return { allowed: true };
+
+  const lastCreated = new Date(data[0].created_at).getTime();
+  const minutesLeft = Math.ceil((lastCreated + 2 * 60 * 1000 - Date.now()) / 60000);
+  
+  return { allowed: false, minutesLeft };
 }
 
 export async function hasActiveTask(ipAddress: string): Promise<boolean> {
-  // DEV OVERRIDE: Temporarily disabled so you can test 4 concurrent tabs locally!
-  return false;
-
+  const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
   const { data, error } = await getSupabase()
     .from("task_data")
     .select("task_id")
