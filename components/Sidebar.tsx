@@ -8,7 +8,6 @@ interface SidebarProps {
 }
 
 interface HistoryItem {
-  task_id: string;
   problem: string;
   video_url: string;
 }
@@ -16,18 +15,27 @@ interface HistoryItem {
 export function Sidebar({ isOpen, onNewQuestion, onSelectHistoryItem }: SidebarProps) {
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
+  const loadHistory = () => {
+    try {
+      const data = JSON.parse(localStorage.getItem("stemvue_history") || "[]");
+      setHistory(data.filter((h: any) => h.video_url));
+    } catch (e) {
+      console.error("Failed to load history from local storage", e);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
-      fetch("/api/history")
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.history) {
-            setHistory(data.history);
-          }
-        })
-        .catch(console.error);
+      loadHistory();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    window.addEventListener("historyUpdated", loadHistory);
+    // Initial load
+    loadHistory();
+    return () => window.removeEventListener("historyUpdated", loadHistory);
+  }, []);
 
   const navItems = [
     {
@@ -90,7 +98,7 @@ export function Sidebar({ isOpen, onNewQuestion, onSelectHistoryItem }: SidebarP
           </h3>
           {history.map(item => (
             <button
-              key={item.task_id}
+              key={item.video_url}
               onClick={() => onSelectHistoryItem && onSelectHistoryItem(item.video_url, item.problem)}
               className="group flex flex-col items-start gap-1 rounded-lg px-3 py-2 transition-all duration-150 cursor-pointer hover:bg-[var(--surface-hover)] text-left"
             >

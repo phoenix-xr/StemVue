@@ -25,11 +25,15 @@ export default function Home() {
   const [videoReady, setVideoReady] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [language, setLanguage] = useState<"english" | "hinglish">("english");
-  const [explainDeeply, setExplainDeeply] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<"queued" | "processing">("queued");
+  const [queuePosition, setQueuePosition] = useState(0);
+  const [queueTotal, setQueueTotal] = useState(0);
+  
+  const activeTaskIdRef = useRef<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,7 +76,6 @@ export default function Home() {
       const formData = new FormData();
       formData.append("query", query);
       formData.append("language", language);
-      formData.append("explainDeeply", explainDeeply.toString());
       if (imageFile) {
         formData.append("image", imageFile);
       }
@@ -99,18 +102,50 @@ export default function Home() {
       setIsLoading(false);
       setSubmitted(true);
       setGenerating(true);
+      setVideoReady(false);
+      setVideoUrl(null);
+      setGenerationStatus("queued");
 
       const taskId = data.taskId;
+      activeTaskIdRef.current = taskId;
 
       // Swap out ugly fetch polling for a single, clean Server-Sent Events stream
       const eventSource = new EventSource(`/api/status/${taskId}`);
+
+      let processStartTime: number | null = null;
+      let timeoutInterval: NodeJS.Timeout | null = null;
 
       eventSource.onmessage = (event) => {
         const statusData = JSON.parse(event.data);
         console.log(`[SSE PUSH] Task ${taskId}:`, statusData.status);
 
+        if (statusData.status === "queued" || statusData.status === "processing") {
+           setGenerationStatus(statusData.status);
+           if (statusData.status === "queued") {
+             setQueuePosition(statusData.position || 0);
+             setQueueTotal(statusData.total || 0);
+           }
+        }
+
+        // Timeout tracking
+        if (statusData.status === "processing") {
+            if (!processStartTime) {
+                processStartTime = Date.now();
+                timeoutInterval = setInterval(() => {
+                    if (Date.now() - processStartTime! > 180000) {
+                        eventSource.close();
+                        if (timeoutInterval) clearInterval(timeoutInterval);
+                        setGenerating(false);
+                        setErrorPopup("Video processing timed out. Please try again.");
+                        fetch(`/api/cancel`, { method: "POST", body: JSON.stringify({ taskId }) });
+                    }
+                }, 5000);
+            }
+        }
+
         if (statusData.status === "completed" && statusData.videoUrl) {
           eventSource.close();
+          if (timeoutInterval) clearInterval(timeoutInterval);
           setGenerating(false);
           setVideoReady(true);
           
@@ -119,9 +154,18 @@ export default function Home() {
           const fullUrl = `${baseUrl}/storage/v1/object/public/Video%20Storage/${statusData.videoUrl}`;
           setVideoUrl(fullUrl);
           
+          // Save to local storage history
+          try {
+            const newHistoryItem = { video_url: fullUrl, problem: query || "Image problem" };
+            const existing = JSON.parse(localStorage.getItem("stemvue_history") || "[]");
+            localStorage.setItem("stemvue_history", JSON.stringify([newHistoryItem, ...existing]));
+            window.dispatchEvent(new Event("historyUpdated"));
+          } catch (err) { console.error("Failed to save history", err); }
+          
           console.log("Displayed video from:", fullUrl);
         } else if (statusData.status === "failed") {
           eventSource.close();
+          if (timeoutInterval) clearInterval(timeoutInterval);
           setGenerating(false);
           setErrorPopup(`Generation failed: ${statusData.error || "Unknown compilation crash"}`);
         }
@@ -130,6 +174,7 @@ export default function Home() {
       eventSource.onerror = (err) => {
         console.error("SSE stream error:", err);
         eventSource.close();
+        if (timeoutInterval) clearInterval(timeoutInterval);
         setGenerating(false);
         setErrorPopup("Lost connection to the generation server tracking stream.");
       };
@@ -159,6 +204,13 @@ export default function Home() {
     setIsLoading(false);
     setErrorPopup(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCancel = () => {
+    if (!activeTaskIdRef.current) return;
+    setGenerating(false);
+    setSubmitted(false);
+    fetch(`/api/cancel`, { method: "POST", body: JSON.stringify({ taskId: activeTaskIdRef.current }) });
   };
 
   const hasContent = !!query.trim() || !!imagePreview;
@@ -286,8 +338,6 @@ export default function Home() {
                   handleKeyDown={handleKeyDown}
                   language={language}
                   setLanguage={setLanguage}
-                  explainDeeply={explainDeeply}
-                  setExplainDeeply={setExplainDeeply}
                   hasContent={hasContent}
                   isLoading={isLoading}
                 />
@@ -323,7 +373,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                {generating && <GenerationProgress />}
+                {generating && <GenerationProgress status={generationStatus} queuePosition={queuePosition} queueTotal={queueTotal} onCancel={handleCancel} />}
 
                 {videoReady && (
                   <div
@@ -405,8 +455,6 @@ export default function Home() {
                     handleKeyDown={handleKeyDown}
                     language={language}
                     setLanguage={setLanguage}
-                    explainDeeply={explainDeeply}
-                    setExplainDeeply={setExplainDeeply}
                     hasContent={hasContent}
                     isLoading={isLoading}
                     compact

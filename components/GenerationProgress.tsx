@@ -10,16 +10,24 @@ function formatTime(secs: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function GenerationProgress() {
+interface GenerationProgressProps {
+  status: "queued" | "processing";
+  queuePosition?: number;
+  queueTotal?: number;
+  onCancel: () => void;
+}
+
+export function GenerationProgress({ status, queuePosition, queueTotal, onCancel }: GenerationProgressProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const start = Date.now();
+    if (status !== "processing") return;
+    const start = Date.now() - elapsed * 1000;
     const interval = setInterval(() => {
       setElapsed((Date.now() - start) / 1000);
     }, 200);
     return () => clearInterval(interval);
-  }, []);
+  }, [status]);
 
   const progress = Math.min((elapsed / ESTIMATED_TIME_SECS) * 100, 98); // never hit 100 until truly done
   const remaining = Math.max(ESTIMATED_TIME_SECS - elapsed, 0);
@@ -90,19 +98,36 @@ export function GenerationProgress() {
           </div>
         </div>
 
-        {/* Time info */}
-        <div className="flex items-center gap-4 text-xs">
-          <span className="text-[var(--muted)]">
-            Elapsed: <span className="font-mono text-[var(--foreground)]">{formatTime(elapsed)}</span>
-          </span>
-          <span
-            className="h-3 w-px"
-            style={{ background: "var(--border)" }}
-          />
-          <span className="text-[var(--muted)]">
-            Remaining: ≈ <span className="font-mono text-[var(--foreground)]">{formatTime(remaining)}</span>
-          </span>
-        </div>
+        {/* Time info or queued info */}
+        {status === "queued" ? (
+          <div className="flex items-center gap-4 text-sm font-medium text-[var(--accent)]">
+             <span>You are in queue... Position: {queuePosition || 1} of {queueTotal || 1}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 text-xs">
+            <span className="text-[var(--muted)]">
+              Elapsed: <span className="font-mono text-[var(--foreground)]">{formatTime(elapsed)}</span>
+            </span>
+            <span
+              className="h-3 w-px"
+              style={{ background: "var(--border)" }}
+            />
+            <span className="text-[var(--muted)]">
+              Remaining: ≈ <span className="font-mono text-[var(--foreground)]">{formatTime(remaining)}</span>
+            </span>
+          </div>
+        )}
+
+        <button 
+          onClick={onCancel}
+          className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 transition-all cursor-pointer border border-red-500/30"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" />
+            <rect x="14" y="4" width="4" height="16" />
+          </svg>
+          Cancel / Pause
+        </button>
       </div>
     </div>
   );

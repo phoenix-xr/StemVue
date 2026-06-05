@@ -25,7 +25,7 @@ function getSupabase(): SupabaseClient {
 export async function createTask(taskId: string, problem: string, ipAddress: string) {
   const { error } = await getSupabase()
     .from("task_data")
-    .insert({ task_id: taskId, status: "processing", problem, ip_address: ipAddress });
+    .insert({ task_id: taskId, status: "queued", problem, ip_address: ipAddress });
 
   if (error) throw new Error(`Supabase insert failed: ${error.message}`);
 }
@@ -36,14 +36,15 @@ export async function checkRateLimit(ipAddress: string): Promise<{ allowed: bool
 }
 
 export async function hasActiveTask(ipAddress: string): Promise<boolean> {
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // DEV OVERRIDE: Temporarily disabled so you can test 4 concurrent tabs locally!
+  return false;
 
   const { data, error } = await getSupabase()
     .from("task_data")
     .select("task_id")
     .eq("ip_address", ipAddress)
-    .in("status", ["processing", "rendering"])
-    .gt("created_at", tenMinutesAgo)
+    .in("status", ["queued", "processing", "rendering"])
+    .gt("created_at", threeMinutesAgo)
     .limit(1);
 
   if (error) {
@@ -52,6 +53,53 @@ export async function hasActiveTask(ipAddress: string): Promise<boolean> {
   }
   
   return data && data.length > 0;
+}
+
+export async function getActiveSystemTasksCount(): Promise<number> {
+  // We use 15 minutes because tasks might legitimately sit in the 'queued' state for several minutes
+  // before they even begin 'processing'. If we use a small window, they age out of this check!
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const { count, error } = await getSupabase()
+    .from("task_data")
+    .select("task_id", { count: "exact", head: true })
+    .in("status", ["processing", "rendering"])
+    .gt("created_at", fifteenMinutesAgo);
+  
+  if (error) {
+    console.error(`System tasks count failed: ${error.message}`);
+    return 2; // Fail closed: if DB is unreachable, prevent queue flood
+  }
+  return count || 0;
+}
+
+export async function getQueueStats(taskId: string): Promise<{ position: number, total: number }> {
+  const supabase = getSupabase();
+  // Get creation time of this task
+  const { data: thisTask } = await supabase
+    .from("task_data")
+    .select("created_at")
+    .eq("task_id", taskId)
+    .single();
+
+  if (!thisTask) return { position: 1, total: 1 };
+
+  // Total people in queue right now
+  const { count: totalCount } = await supabase
+    .from("task_data")
+    .select("task_id", { count: "exact", head: true })
+    .eq("status", "queued");
+
+  // People in queue who joined before us
+  const { count: beforeCount } = await supabase
+    .from("task_data")
+    .select("task_id", { count: "exact", head: true })
+    .eq("status", "queued")
+    .lt("created_at", thisTask.created_at);
+
+  return { 
+    position: (beforeCount || 0) + 1, 
+    total: totalCount || 1 
+  };
 }
 
 export async function getHistory(ipAddress: string) {

@@ -8,6 +8,8 @@ import { taskStore } from "../../../lib/memoryStore";
 
 const RENDER_SERVER_URL = process.env.RENDER_SERVER_URL || "http://127.0.0.1:8000";
 
+let globalQueueLock = false;
+
 export async function POST(req: Request) {
   const taskId = uuidv4();
 
@@ -15,7 +17,6 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const query = (formData.get("query") as string) || "Solve default problem.";
     const language = (formData.get("language") as string) || "english";
-    const explainDeeply = formData.get("explainDeeply") === "true";
     const image = formData.get("image") as File | null;
 
     let problem = query;
@@ -27,7 +28,6 @@ export async function POST(req: Request) {
     console.log(`[Generate] New task ${taskId} from IP ${clientIp}:`, {
       problem: problem.substring(0, 60),
       language,
-      explainDeeply,
       hasImage: !!image,
     });
 
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     await createTask(taskId, problem, clientIp);
     
     // Register it immediately into local memory so polling finds it
-    taskStore.set(taskId, { status: "processing" });
+    taskStore.set(taskId, { status: "queued" });
 
     // Extract image data if available
     let imagePayload: { data: string, mimeType: string } | null = null;
@@ -91,12 +91,51 @@ export async function POST(req: Request) {
  * The async pipeline that runs after the initial response is sent.
  */
 async function runPipeline(taskId: string, problem: string, language: string, imagePayload: { data: string, mimeType: string } | null) {
-  const start = Date.now();
-
   try {
+    // ── Queue System: Wait until < 1 active tasks globally ──
+    const { getActiveSystemTasksCount, updateTask } = await import("../../../lib/supabase");
+    let waitCount = 0;
+    while (true) {
+      if (globalQueueLock) {
+         await new Promise(r => setTimeout(r, 500));
+         continue;
+      }
+
+      globalQueueLock = true;
+      try {
+          // Check global DB (asynchronous but heavily locked by our mutex)
+          const dbCount = await getActiveSystemTasksCount();
+          console.log(`[Queue Check] Task ${taskId} evaluated DBCount as: ${dbCount}`);
+          
+          if (dbCount < 1) {
+              console.log(`[Pipeline ${taskId}] Entering processing phase!`);
+              taskStore.set(taskId, { status: "processing" });
+              await updateTask(taskId, "status", "processing");
+              globalQueueLock = false;
+              break;
+          }
+      } catch (e) {
+          console.error(`[Pipeline ${taskId}] Queue check error:`, e);
+      }
+      globalQueueLock = false;
+
+      if (waitCount === 0) console.log(`[Pipeline ${taskId}] Queue is full. Waiting...`);
+      
+      const currentLocal = taskStore.get(taskId);
+      if (currentLocal && currentLocal.status === "failed") {
+        console.log(`[Pipeline ${taskId}] Cancelled by user while in queue.`);
+        return; // Abort
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      waitCount++;
+    }
+
+    const start = Date.now();
+
     // ── Step 2: Call Gemini LLM ──
     console.log(`[Pipeline ${taskId}] Calling Gemini...`);
-    const rawResponse = await queryGemini(problem, language, imagePayload);
+    const rawResponse = await queryGemini(taskId, problem, language, imagePayload);
 
     if (!rawResponse) {
       throw new Error("Gemini returned an empty response");

@@ -13,8 +13,6 @@ interface InputBarProps {
   handleKeyDown: (e: React.KeyboardEvent) => void;
   language: "english" | "hinglish";
   setLanguage: (v: "english" | "hinglish") => void;
-  explainDeeply: boolean;
-  setExplainDeeply: (v: boolean) => void;
   hasContent: boolean;
   isLoading: boolean;
   compact?: boolean;
@@ -32,8 +30,6 @@ export function InputBar({
   handleKeyDown,
   language,
   setLanguage,
-  explainDeeply,
-  setExplainDeeply,
   hasContent,
   isLoading,
   compact = false,
@@ -169,39 +165,6 @@ export function InputBar({
             );
           })}
         </div>
-
-        {/* Divider */}
-        <div
-          className="h-5 w-px"
-          style={{ background: "var(--border)" }}
-        />
-
-        {/* Explain Deeply toggle */}
-        <button
-          id="btn-explain-deeply"
-          onClick={() => setExplainDeeply(!explainDeeply)}
-          className={`flex items-center gap-2 rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-all duration-200 cursor-pointer ${
-            explainDeeply
-              ? "text-[var(--foreground)] bg-[var(--accent-soft)] border-[var(--accent)]"
-              : "text-[var(--muted)] bg-transparent border-[var(--border)] hover:bg-[var(--surface-hover)] hover:border-[rgba(139,92,246,0.3)]"
-          }`}
-        >
-          {/* Checkmark box */}
-          <span
-            className="flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-all duration-150"
-            style={{
-              borderColor: explainDeeply ? "var(--accent)" : "var(--muted)",
-              background: explainDeeply ? "var(--accent)" : "transparent",
-            }}
-          >
-            {explainDeeply && (
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </span>
-          <span>Explain deeply</span>
-        </button>
 
         {/* Spacer */}
         <div className="flex-1" />
