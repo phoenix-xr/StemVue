@@ -55,16 +55,22 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
     \`\`\`
   `;
 
+  if (API_KEYS.length === 0) throw new Error("No Gemini API keys configured in environment.");
+
+  // Build a deterministic retry sequence: Try Flash on ALL keys first, then fallback to Gemma
+  const retrySequence: { model: string, key: string, label: string }[] = [];
+  API_KEYS.forEach((key, idx) => {
+    retrySequence.push({ model: GEMINI_MODEL, key, label: `Key ${idx + 1}` });
+  });
+  retrySequence.push({ model: "gemma-4-31b-it", key: API_KEYS[0], label: "Key 1 (Gemma Fallback)" });
+
   let attempts = 0;
-  const maxRetries = 3;
+  const maxRetries = retrySequence.length;
 
   while (attempts < maxRetries) {
     try {
-      let activeModel = GEMINI_MODEL;
-      if (attempts === 1) activeModel = "gemma-4-31b-it";
-      else if (attempts === 2) activeModel = "gemini-1.5-pro"; // Ultimate fallback if Gemma 4 crashes with a 500 error
-      
-      console.log(`[Gemini ${taskId}] Sending request to ${activeModel} (Attempt ${attempts + 1}/${maxRetries})...`);
+      const currentTry = retrySequence[attempts];
+      console.log(`[Gemini ${taskId}] Sending request to ${currentTry.model} via ${currentTry.label} (Attempt ${attempts + 1}/${maxRetries})...`);
 
       let contentParts: any[] = [`PROBLEM: ${problem}`];
       if (imagePayload) {
@@ -77,9 +83,9 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
       }
 
       // Use streaming to collect the full response
-      const client = getRandomClient();
+      const client = new GoogleGenAI({ apiKey: currentTry.key });
       const response = await client.models.generateContentStream({
-        model: activeModel,
+        model: currentTry.model,
         contents: contentParts,
         config: { 
           temperature: 0.2,
