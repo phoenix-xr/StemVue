@@ -1,5 +1,5 @@
 export type TaskState = {
-  status: "processing" | "rendering" | "completed" | "failed";
+  status: "queued" | "processing" | "rendering" | "completed" | "failed";
   videoUrl?: string;
   error?: string;
 };
