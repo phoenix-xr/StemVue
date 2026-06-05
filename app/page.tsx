@@ -32,6 +32,7 @@ export default function Home() {
   const [generationStatus, setGenerationStatus] = useState<"queued" | "processing">("queued");
   const [queuePosition, setQueuePosition] = useState(0);
   const [queueTotal, setQueueTotal] = useState(0);
+  const [usedModel, setUsedModel] = useState<string | null>(null);
   
   const activeTaskIdRef = useRef<string | null>(null);
 
@@ -105,6 +106,7 @@ export default function Home() {
       setVideoReady(false);
       setVideoUrl(null);
       setGenerationStatus("queued");
+      setUsedModel(null);
 
       const taskId = data.taskId;
       activeTaskIdRef.current = taskId;
@@ -125,6 +127,10 @@ export default function Home() {
              setQueuePosition(statusData.position || 0);
              setQueueTotal(statusData.total || 0);
            }
+        }
+
+        if (statusData.usedModel) {
+             setUsedModel(statusData.usedModel);
         }
 
         // Timeout tracking
@@ -203,6 +209,7 @@ export default function Home() {
     setVideoReady(false);
     setIsLoading(false);
     setErrorPopup(null);
+    setUsedModel(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -221,6 +228,7 @@ export default function Home() {
     setSubmitted(true);
     setGenerating(false);
     setVideoReady(true);
+    setUsedModel(null);
     
     // 2. Set the UI text to match the history trace.
     setQuery(problemStr);
@@ -373,7 +381,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                {generating && <GenerationProgress status={generationStatus} queuePosition={queuePosition} queueTotal={queueTotal} onCancel={handleCancel} />}
+                {generating && <GenerationProgress status={generationStatus} queuePosition={queuePosition} queueTotal={queueTotal} onCancel={handleCancel} usedModel={usedModel} />}
 
                 {videoReady && (
                   <div

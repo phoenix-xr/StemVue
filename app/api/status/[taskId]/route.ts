@@ -46,6 +46,7 @@ export async function GET(
               total: queueTotal,
               videoUrl: dbTask.video_url || null,
               error: dbTask.error || null,
+              usedModel: dbTask.used_model || null,
             });
 
             if (currentStatus === "completed" || currentStatus === "failed") {

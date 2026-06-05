@@ -135,10 +135,18 @@ async function runPipeline(taskId: string, problem: string, language: string, im
 
     // ── Step 2: Call Gemini LLM ──
     console.log(`[Pipeline ${taskId}] Calling Gemini...`);
-    const rawResponse = await queryGemini(taskId, problem, language, imagePayload);
+    const { content: rawResponse, model: usedModel } = await queryGemini(taskId, problem, language, imagePayload);
 
     if (!rawResponse) {
       throw new Error("Gemini returned an empty response");
+    }
+
+    // Save the used model to Supabase immediately so the UI knows!
+    try {
+      const { updateTask } = await import("../../../lib/supabase");
+      await updateTask(taskId, "used_model", usedModel);
+    } catch (e) {
+      console.warn("Failed to save used_model to Supabase:", e);
     }
 
     // ── Step 3: Parse <PLAN> and <CODE> blocks ──

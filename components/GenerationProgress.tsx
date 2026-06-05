@@ -15,9 +15,10 @@ interface GenerationProgressProps {
   queuePosition?: number;
   queueTotal?: number;
   onCancel: () => void;
+  usedModel?: string | null;
 }
 
-export function GenerationProgress({ status, queuePosition, queueTotal, onCancel }: GenerationProgressProps) {
+export function GenerationProgress({ status, queuePosition, queueTotal, onCancel, usedModel }: GenerationProgressProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -79,6 +80,11 @@ export function GenerationProgress({ status, queuePosition, queueTotal, onCancel
           <p className="text-xs text-[var(--muted)]">
             This usually takes about 2 minutes
           </p>
+          {usedModel && (
+            <p className="mt-1 text-[10px] text-[var(--muted)] opacity-50">
+              {usedModel}
+            </p>
+          )}
         </div>
 
         {/* Progress bar */}

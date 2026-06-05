@@ -19,7 +19,7 @@ export async function queryGemini(
   problem: string,
   language: string = "english",
   imagePayload: { data: string, mimeType: string } | null = null
-): Promise<string> {
+): Promise<{ content: string, model: string }> {
   const systemInstructionsText = `
 You are the Master Agent. Strictly output a <PLAN> block and a <CODE> block.
 VizLearn AI. Translate the given problem into Manim Python code.
@@ -101,7 +101,7 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
       }
 
       console.log(`\n[Gemini ${taskId}] Response complete, length:`, fullResponse.length);
-      return fullResponse;
+      return { content: fullResponse, model: currentTry.model };
     } catch (error: any) {
       console.error(`\n[Gemini ${taskId}] Server crashed on attempt ${attempts + 1}: ${error.message}`);
       attempts++;
@@ -116,7 +116,7 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
     }
   }
 
-  return "";
+  return { content: "", model: "" };
 }
 
 /**
