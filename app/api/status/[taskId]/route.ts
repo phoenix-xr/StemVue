@@ -21,59 +21,48 @@ export async function GET(
       };
 
       const checkInterval = setInterval(async () => {
-        const localState = taskStore.get(taskId);
-        
-        if (localState) {
-          let currentStatus = localState.status;
-          let queuePosition = 0;
-          let queueTotal = 0;
+        try {
+          const { getTask, getQueueStats } = await import("../../../../lib/supabase");
+          const dbTask = await getTask(taskId);
+          
+          if (dbTask) {
+            let currentStatus = dbTask.status;
+            let queuePosition = 0;
+            let queueTotal = 0;
 
-          if (currentStatus === "queued") {
-            try {
-              const { getQueueStats } = await import("../../../../lib/supabase");
+            if (currentStatus === "queued") {
               const stats = await getQueueStats(taskId);
               queuePosition = stats.position;
               queueTotal = stats.total;
-            } catch (e) {
-              console.error("Failed to get queue stats", e);
             }
-          }
 
-          // If Next.js has handed off to FastAPI, it says "rendering".
-          // Since we strictly throttle globally, if it hits Celery it is immediately processing.
-          if (currentStatus === "rendering") {
-             currentStatus = "processing";
-          }
+            if (currentStatus === "rendering") {
+               currentStatus = "processing";
+            }
 
-          sendEvent({
-            status: currentStatus,
-            position: queuePosition,
-            total: queueTotal,
-            videoUrl: localState.videoUrl || null,
-            error: localState.error || null,
-          });
+            sendEvent({
+              status: currentStatus,
+              position: queuePosition,
+              total: queueTotal,
+              videoUrl: dbTask.video_url || null,
+              error: dbTask.error || null,
+            });
 
-          // End the stream connection when finished
-          if (localState.status === "completed" || localState.status === "failed") {
-            clearInterval(checkInterval);
-            try { controller.close(); } catch {}
+            if (currentStatus === "completed" || currentStatus === "failed") {
+              clearInterval(checkInterval);
+              try { controller.close(); } catch {}
+            }
+          } else {
+             sendEvent({ status: "queued", position: 0, total: 0, videoUrl: null, error: null });
           }
-        } else {
-           // Still spinning up, push queued
-           sendEvent({ status: "queued", position: 0, total: 0, videoUrl: null, error: null });
+        } catch (e) {
+          console.error("[SSE] DB poll error:", e);
         }
-      }, 2000); // Check every 2 seconds
+      }, 3000); // Check DB every 3 seconds to be gentle on Supabase Free Tier
 
       req.signal.addEventListener("abort", () => {
         clearInterval(checkInterval);
         try { controller.close(); } catch {}
-        
-        // If aborted while still queued, mark as failed so the queue loop skips it
-        const localState = taskStore.get(taskId);
-        if (localState && localState.status === "queued") {
-          taskStore.set(taskId, { status: "failed", error: "Cancelled by user disconnect" });
-          import("../../../../lib/supabase").then(m => m.updateTask(taskId, "status", "cancelled")).catch(console.error);
-        }
       });
     },
   });
