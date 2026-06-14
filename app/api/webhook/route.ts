@@ -39,9 +39,9 @@ export async function GET(req: Request) {
     // Task Completed Successfully!
     console.log(`[Webhook] Task ${taskId} completed! URL: ${videoUrl}`);
 
-    // 1. Update Supabase
-    await updateTask(taskId, "status", "completed");
+    // 1. Update Supabase (Video URL must be updated FIRST to prevent SSE race conditions)
     await updateTask(taskId, "video_url", videoUrl);
+    await updateTask(taskId, "status", "completed");
 
     // 2. Update local Server Memory so poller sees it instantly
     taskStore.set(taskId, {
