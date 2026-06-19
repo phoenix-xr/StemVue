@@ -19,7 +19,7 @@ const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks
 function getVertexClient() {
   return new GoogleGenAI({ 
     project: process.env.VERTEX_AI_PROJECT_ID!, 
-    location: process.env.VERTEX_AI_LOCATION || "us-central1",
+    location: process.env.VERTEX_AI_LOCATION || "global",
     vertexai: true
   });
 }
