@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { execSync } from 'child_process';
-import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs';
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 
-const ai = new GoogleGenAI({ 
-  project: process.env.VERTEX_AI_PROJECT_ID!, 
-  location: 'asia-south1',
-  vertexai: true
-});
+if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
+  const tmpPath = join(tmpdir(), 'gcp-key.json');
+  if (!existsSync(tmpPath)) {
+    writeFileSync(tmpPath, process.env.GCP_SERVICE_ACCOUNT_JSON);
+  }
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+}
 
 const SYSTEM_PROMPT = `You are a Manim animation expert. Given a math/physics concept, generate a Python Manim script that creates a clear, educational animation.
 
@@ -52,6 +54,11 @@ class MainScene(Scene):
  */
 export async function POST(req: NextRequest) {
   try {
+    const ai = new GoogleGenAI({ 
+      project: process.env.VERTEX_AI_PROJECT_ID!, 
+      location: 'asia-south1',
+      vertexai: true
+    });
     const { prompt } = await req.json();
     if (!prompt?.trim()) {
       return NextResponse.json({ error: 'No prompt provided' }, { status: 400 });

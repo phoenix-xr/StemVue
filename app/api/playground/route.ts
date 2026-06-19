@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-const ai = new GoogleGenAI({ 
-  project: process.env.VERTEX_AI_PROJECT_ID!, 
-  location: 'asia-south1',
-  vertexai: true
-});
+if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
+  const tmpPath = path.join(os.tmpdir(), 'gcp-key.json');
+  if (!fs.existsSync(tmpPath)) {
+    fs.writeFileSync(tmpPath, process.env.GCP_SERVICE_ACCOUNT_JSON);
+  }
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const ai = new GoogleGenAI({ 
+      project: process.env.VERTEX_AI_PROJECT_ID!, 
+      location: 'asia-south1',
+      vertexai: true
+    });
     const { prompt } = await req.json();
 
     if (!prompt) {

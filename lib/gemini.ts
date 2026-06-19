@@ -1,4 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
+import fs from "fs";
+import path from "path";
+import os from "os";
+
+// ── VERCEL AUTH WORKAROUND ──
+// Vercel does not support uploading JSON files directly for Google Auth.
+// If we have raw JSON in an env var, write it to /tmp so Vertex AI can read it natively.
+if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
+  const tmpPath = path.join(os.tmpdir(), 'gcp-key.json');
+  if (!fs.existsSync(tmpPath)) {
+    fs.writeFileSync(tmpPath, process.env.GCP_SERVICE_ACCOUNT_JSON);
+  }
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+}
 
 const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks
 
