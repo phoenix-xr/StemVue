@@ -7,28 +7,33 @@ export function parseResponse(response: string): {
   code: string;
 } {
   let plan = "";
-  let code = response; // fallback: treat the whole thing as code
+  let code = response;
 
-  // Extract <PLAN> block
-  if (response.includes("<PLAN>") && response.includes("</PLAN>")) {
-    plan = response.split("<PLAN>")[1].split("</PLAN>")[0].trim();
+  // 1. Aggressively extract the PLAN block if it exists
+  const planMatch = response.match(/<PLAN>([\s\S]*?)(?:<\/PLAN>|$)/i);
+  if (planMatch) {
+    plan = planMatch[1].trim();
+    // Strip the entire PLAN block from the code fallback so it NEVER compiles as Python
+    code = code.replace(planMatch[0], "").trim();
   }
 
-  // Extract <CODE> block
-  if (response.includes("<CODE>") && response.includes("</CODE>")) {
-    code = response.split("<CODE>")[1].split("</CODE>")[0].trim();
+  // 2. Try to extract the CODE block
+  const codeMatch = code.match(/<CODE>([\s\S]*?)(?:<\/CODE>|$)/i);
+  if (codeMatch) {
+    code = codeMatch[1].trim();
   } else {
-    // Fallback parsing for markdown fences
-    if (code.includes("```python")) {
-      code = code.split("```python")[1].split("```")[0].trim();
-    }
-    if (code.startsWith("```")) {
-      code = code.slice(3);
-    }
-    if (code.endsWith("```")) {
-      code = code.slice(0, -3);
+    // 3. Fallback: look for markdown python fences
+    const mdMatch = code.match(/```(?:python)?\s*([\s\S]*?)(?:```|$)/i);
+    if (mdMatch) {
+      code = mdMatch[1].trim();
     }
   }
 
-  return { plan: plan.trim(), code: code.trim() };
+  // Final cleanup: strip any lingering markdown fences inside the extracted code
+  code = code.replace(/^```(?:python)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  // Safety net: if <PLAN> or <CODE> tags are still somehow at the top of the code, remove them
+  code = code.replace(/<\/?(?:PLAN|CODE)>[\s\S]*?(?:<\/?(?:PLAN|CODE)>|$)/ig, "").trim();
+
+  return { plan, code };
 }
