@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { taskStore } from "../../../../lib/memoryStore";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ taskId: string }> }
@@ -61,8 +63,13 @@ export async function GET(
         }
       }, 3000); // Check DB every 3 seconds to be gentle on Supabase Free Tier
 
+      const pingInterval = setInterval(() => {
+        try { controller.enqueue(encoder.encode(": keepalive\n\n")); } catch {}
+      }, 15000);
+
       req.signal.addEventListener("abort", () => {
         clearInterval(checkInterval);
+        clearInterval(pingInterval);
         try { controller.close(); } catch {}
       });
     },

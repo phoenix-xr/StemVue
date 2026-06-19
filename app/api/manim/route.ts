@@ -6,7 +6,11 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = new GoogleGenAI({ 
+  project: process.env.VERTEX_AI_PROJECT_ID!, 
+  location: 'asia-south1',
+  vertexai: true
+});
 
 const SYSTEM_PROMPT = `You are a Manim animation expert. Given a math/physics concept, generate a Python Manim script that creates a clear, educational animation.
 

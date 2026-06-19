@@ -193,5 +193,12 @@ async function runPipeline(taskId: string, problem: string, language: string, im
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Pipeline ${taskId}] FAILED:`, message);
     taskStore.set(taskId, { status: "failed", error: message });
+    try {
+      const { updateTask } = await import("../../../lib/supabase");
+      await updateTask(taskId, "status", "failed");
+      await updateTask(taskId, "error", message);
+    } catch (e) {
+      console.error("Failed to push error to Supabase:", e);
+    }
   }
 }

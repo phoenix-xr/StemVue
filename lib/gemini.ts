@@ -1,13 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
 
-const keysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
-const API_KEYS = keysEnv.split(",").map(k => k.trim()).filter(k => k.length > 0);
-const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks, falls back to Gemma on 503
+const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks
 
-function getRandomClient() {
-  if (API_KEYS.length === 0) throw new Error("No Gemini API keys configured in environment.");
-  const randomKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
-  return new GoogleGenAI({ apiKey: randomKey });
+function getVertexClient() {
+  return new GoogleGenAI({ 
+    project: process.env.VERTEX_AI_PROJECT_ID!, 
+    location: "asia-south1",
+    vertexai: true
+  });
 }
 
 /**
@@ -45,7 +45,7 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
 - CRITICAL MATH RULE: NEVER use '$' signs inside MathTex or Tex strings! MathTex is ALREADY natively in a math environment. Using '$' will escape it and cause a fatal LaTeX compilation crash. For example, ALWAYS write \`MathTex(r"30^\\circ")\` INSTEAD of \`MathTex(r"30$^\\circ$")\`.
 - PHASE 1 (VISUAL): Step-by-Step Visual Solution Animation. Do NOT just draw a static diagram! You MUST animate the entire physical/geometric intuition of the problem's solution from start to finish *without* doing the mathematical algebraic solving yet. CRITICAL RULE: YOU MUST EXPLICITLY ANIMATE AND LABEL THE RESOLVED COMPONENT VECTORS! For physics problems, animate the forces appearing one-by-one, and explicitly use Manim Arrows to draw the resolved horizontal and vertical forces (e.g. mg*sin(theta), mg*cos(theta)). Make it a dynamic, moving visual explanation. Skip entirely if Pure Math. ALL geometrical creation MUST be wrapped in generic \`with self.voiceover(text="..."):\` blocks!
 - PHASE 1.5 (PLANNING): Call \`self.clear_screen()\` to wipe the visuals. Then, draw a brief text roadmap on screen (using text and simple formatting) to explain the upcoming mathematical strategy. CRITICAL: You MUST use the standard \`Text("...")\` class for all plain English words here, NOT \`MathTex\`! Using MathTex for English sentences natively strips all spaces and squishes words together (e.g., "RoadmaptoSolution"). Use rhetorical questions and answers in the voiceover.
-- PHASE 2 (MATH):
+- PHASE 2 (MATH): OPTIONAL! If the question is purely visual and the entire solution or explanation can be conveyed fully through the animation in PHASE 1, you MUST skip PHASE 2 entirely and omit this block. Otherwise:
   - Start: \`self.set_scene_title("Math Solution")\` (this also automatically clears the screen safely).
   - Parts Layout: For each part of the solution, declare the primary formula using \`self.set_master_equation(r"F = m \\cdot a")\`. This auto-clears previous calculations and headers the current step.
   - Calculations: Use \`self.present_equation(r"...")\` to vertically stack steps logically bounded below the current master equation.
@@ -56,22 +56,13 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
     \`\`\`
   `;
 
-  if (API_KEYS.length === 0) throw new Error("No Gemini API keys configured in environment.");
-
-  // Build a deterministic retry sequence: Try Flash on ALL keys first, then fallback to Gemma
-  const retrySequence: { model: string, key: string, label: string }[] = [];
-  API_KEYS.forEach((key, idx) => {
-    retrySequence.push({ model: GEMINI_MODEL, key, label: `Key ${idx + 1}` });
-  });
-  retrySequence.push({ model: "gemma-4-31b-it", key: API_KEYS[0], label: "Key 1 (Gemma Fallback)" });
-
   let attempts = 0;
-  const maxRetries = retrySequence.length;
+  const maxRetries = 3;
+  const client = getVertexClient();
 
   while (attempts < maxRetries) {
     try {
-      const currentTry = retrySequence[attempts];
-      console.log(`[Gemini ${taskId}] Sending request to ${currentTry.model} via ${currentTry.label} (Attempt ${attempts + 1}/${maxRetries})...`);
+      console.log(`[Gemini ${taskId}] Sending request to ${GEMINI_MODEL} via Vertex AI (Attempt ${attempts + 1}/${maxRetries})...`);
 
       let contentParts: any[] = [`PROBLEM: ${problem}`];
       if (imagePayload) {
@@ -84,9 +75,8 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
       }
 
       // Use streaming to collect the full response
-      const client = new GoogleGenAI({ apiKey: currentTry.key });
       const response = await client.models.generateContentStream({
-        model: currentTry.model,
+        model: GEMINI_MODEL,
         contents: contentParts,
         config: { 
           temperature: 0.2,
@@ -102,13 +92,13 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
       }
 
       console.log(`\n[Gemini ${taskId}] Response complete, length:`, fullResponse.length);
-      return { content: fullResponse, model: currentTry.model };
+      return { content: fullResponse, model: GEMINI_MODEL };
     } catch (error: any) {
       console.error(`\n[Gemini ${taskId}] Server crashed on attempt ${attempts + 1}: ${error.message}`);
       attempts++;
       
       if (attempts >= maxRetries) {
-        throw new Error(`Google API fatal failure after ${maxRetries} retries: ${error.message}`);
+        throw new Error(`Vertex AI fatal failure after ${maxRetries} retries: ${error.message}`);
       }
       
       // Wait 2 seconds manually before next network hit
@@ -121,23 +111,22 @@ $$ [Calculations WITHOUT MISSING ANY STEPS logically below that] $$
 }
 
 /**
- * Executes a dedicated multimodal vision pass strictly utilizing Gemini 1.5 Flash
+ * Executes a dedicated multimodal vision pass strictly utilizing Gemini 3.5 Flash via Vertex AI
  * to transcribe user-uploaded homework images into pure geometric constraints.
  */
 export async function extractTextFromImage(imageFile: File): Promise<string> {
   const visionPrompt = "Extract all text verbatim. For physics diagrams, concisely define vectors, forces, angles, and geometry mathematically so an AI can reconstruct the exact mechanical layout securely.";
-  const visionModel = "gemini-1.5-flash-latest"; // Strictly single free model as requested
   
   try {
     const arrayBuffer = await imageFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
     console.log(`[Gemini Vision] Analyzing image (${imageFile.type}), size: ${buffer.byteLength} bytes...`);
-    console.log(`[Gemini Vision] Attempting extraction via strictly ${visionModel}...`);
+    console.log(`[Gemini Vision] Attempting extraction via strictly ${GEMINI_MODEL} on Vertex AI...`);
     
-    const client = getRandomClient();
+    const client = getVertexClient();
     const response = await client.models.generateContent({
-      model: visionModel,
+      model: GEMINI_MODEL,
       contents: [
         visionPrompt,
         {
@@ -155,7 +144,7 @@ export async function extractTextFromImage(imageFile: File): Promise<string> {
     return text.trim();
 
   } catch (err: any) {
-    console.error(`[Gemini Vision] Fatal strict crash against ${visionModel}:`, err.message);
+    console.error(`[Gemini Vision] Fatal strict crash against ${GEMINI_MODEL}:`, err.message);
     throw new Error(`Vision extraction engine failed natively on primary model: ${err.message}`);
   }
 }
