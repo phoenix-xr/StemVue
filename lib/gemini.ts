@@ -14,12 +14,12 @@ if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
 }
 
-const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks
+const GEMINI_MODEL = "gemini-2.5-flash"; // Falling back to 2.5 because 3.5 threw a 404 for this project
 
 function getVertexClient() {
   return new GoogleGenAI({ 
     project: process.env.VERTEX_AI_PROJECT_ID!, 
-    location: "asia-south1",
+    location: process.env.VERTEX_AI_LOCATION || "us-central1",
     vertexai: true
   });
 }

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   try {
     const ai = new GoogleGenAI({ 
       project: process.env.VERTEX_AI_PROJECT_ID!, 
-      location: 'asia-south1',
+      location: process.env.VERTEX_AI_LOCATION || 'us-central1',
       vertexai: true
     });
     const { prompt } = await req.json();
