@@ -141,7 +141,7 @@ export async function getTask(taskId: string) {
     .from("task_data")
     .select("*")
     .eq("task_id", taskId)
-    .single();
+    .maybeSingle();
 
   if (error) throw new Error(`Supabase select failed: ${error.message}`);
   return data;
