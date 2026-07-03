@@ -14,7 +14,7 @@ if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
 }
 
-const GEMINI_MODEL = "gemini-3.5-flash"; // Primary model for all LLM tasks
+const GEMINI_MODEL = "openai/gpt-oss-120b"; // Primary model for all LLM tasks
 
 function getVertexClient() {
   return new GoogleGenAI({ 
