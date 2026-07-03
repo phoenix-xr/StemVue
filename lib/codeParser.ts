@@ -6,34 +6,64 @@ export function parseResponse(response: string): {
   plan: string;
   code: string;
 } {
+  if (!response) return { plan: "", code: "" };
+
   let plan = "";
-  let code = response;
+  let code = "";
 
-  // 1. Aggressively extract the PLAN block if it exists
-  const planMatch = response.match(/<PLAN>([\s\S]*?)(?:<\/PLAN>|$)/i);
-  if (planMatch) {
-    plan = planMatch[1].trim();
-    // Strip the entire PLAN block from the code fallback so it NEVER compiles as Python
-    code = code.replace(planMatch[0], "").trim();
-  }
+  // 1. First, check if there is a <CODE> tag anywhere in the response.
+  const codeTagMatch = response.match(/<CODE>/i);
 
-  // 2. Try to extract the CODE block
-  const codeMatch = code.match(/<CODE>([\s\S]*?)(?:<\/CODE>|$)/i);
-  if (codeMatch) {
-    code = codeMatch[1].trim();
+  if (codeTagMatch && codeTagMatch.index !== undefined) {
+    // Everything before the <CODE> tag belongs to the plan part
+    const beforeCode = response.slice(0, codeTagMatch.index);
+    
+    const planMatch = beforeCode.match(/<PLAN>([\s\S]*?)(?:<\/PLAN>|$)/i);
+    if (planMatch) {
+      plan = planMatch[1].trim();
+    } else {
+      plan = beforeCode.replace(/<\/?PLAN>/ig, "").trim();
+    }
+
+    // Everything after <CODE> is our code candidate
+    const afterCode = response.slice(codeTagMatch.index + codeTagMatch[0].length);
+    
+    // If there is a closing </CODE> tag, slice up to it
+    const closeCodeMatch = afterCode.match(/<\/CODE>/i);
+    if (closeCodeMatch && closeCodeMatch.index !== undefined) {
+      code = afterCode.slice(0, closeCodeMatch.index);
+    } else {
+      code = afterCode;
+    }
   } else {
-    // 3. Fallback: look for markdown python fences
-    const mdMatch = code.match(/```(?:python)?\s*([\s\S]*?)(?:```|$)/i);
+    // 2. If no <CODE> tag is present, check if there's a markdown python fence
+    const mdMatch = response.match(/```(?:python)?\s*([\s\S]*?)(?:```|$)/i);
     if (mdMatch) {
-      code = mdMatch[1].trim();
+      code = mdMatch[1];
+      if (mdMatch.index !== undefined && mdMatch.index > 0) {
+        const beforeFence = response.slice(0, mdMatch.index);
+        const planMatch = beforeFence.match(/<PLAN>([\s\S]*?)(?:<\/PLAN>|$)/i);
+        plan = planMatch ? planMatch[1].trim() : beforeFence.replace(/<\/?PLAN>/ig, "").trim();
+      }
+    } else {
+      // 3. Fallback: if there is a <PLAN>...</PLAN> tag, treat everything after </PLAN> as code
+      const planCloseMatch = response.match(/<\/PLAN>/i);
+      if (planCloseMatch && planCloseMatch.index !== undefined) {
+        const beforePlanClose = response.slice(0, planCloseMatch.index);
+        const planStartMatch = beforePlanClose.match(/<PLAN>([\s\S]*)/i);
+        plan = planStartMatch ? planStartMatch[1].trim() : beforePlanClose.trim();
+        code = response.slice(planCloseMatch.index + planCloseMatch[0].length);
+      } else {
+        code = response;
+      }
     }
   }
 
-  // Final cleanup: strip any lingering markdown fences inside the extracted code
+  // Clean up code: strip any markdown fences wrapped around the code block
   code = code.replace(/^```(?:python)?\s*/i, "").replace(/```\s*$/i, "").trim();
 
-  // Safety net: if <PLAN> or <CODE> tags are still somehow at the top of the code, remove them
-  code = code.replace(/<\/?(?:PLAN|CODE)>[\s\S]*?(?:<\/?(?:PLAN|CODE)>|$)/ig, "").trim();
+  // Strip literal XML tags without multiline swallowing
+  code = code.replace(/<\/?(?:PLAN|CODE)>/ig, "").trim();
 
-  return { plan, code };
+  return { plan: plan.trim(), code: code.trim() };
 }
