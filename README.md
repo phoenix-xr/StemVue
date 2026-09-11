@@ -2,8 +2,14 @@
 
 > An AI-powered educational animation platform that converts STEM queries and math problems into Manim-rendered visual animated explainer videos.
 
+### Demo Video
 
-![Architecture Diagram](./diagram.png)
+<video src="./38a6e1ce-35d4-436d-a346-b7703ea9e5ad.mp4" controls="controls" muted="muted" width="100%"></video>
+
+**Model:** `gemini-flash-3.5`
+
+**Problem:**
+> A gas balloon is going up with a constant velocity of $10\text{ m/s}$. When this balloon reached a height of $75\text{ m}$, a stone is dropped from it and balloon keeps moving up with the same velocity. The height of the balloon when the stone hits the ground is $\underline{\hspace{1.5cm}}\text{ m}$. (Take $g = 10\text{ m/s}^2$)
 
 ---
 
@@ -70,3 +76,9 @@ docker build -t stemvue-renderer .
 docker run -p 7860:7860 --env-file .env stemvue-renderer
 ```
 Microservice runs at [http://localhost:7860](http://localhost:7860)
+
+---
+
+## Architecture
+
+![Architecture Diagram](./diagram.png)
