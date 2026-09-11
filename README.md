@@ -3,8 +3,7 @@
 > An AI-powered educational animation platform that converts STEM queries and math problems into Manim-rendered visual animated explainer videos.
 
 ### Demo Video
-
-<video src="./38a6e1ce-35d4-436d-a346-b7703ea9e5ad.mp4" controls="controls" muted="muted" width="100%"></video>
+https://github.com/user-attachments/assets/28c430b5-12ff-4a22-9ce4-c7b3432a0fc9
 
 **Model:** `gemini-flash-3.5`
 
